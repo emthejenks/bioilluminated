@@ -2,26 +2,13 @@ import serial
 import time
 import jsons
 
+######################################
+# Global Constants
+######################################
+VERSION = 1.0
 
-
-
-
-##while True:
-##    arduino = serial.Serial('COM3', 9600, timeout=1) # timeout added.
-##    time.sleep(2)  # Allow time for the serial port to initialize
-##    data = input("Enter data to send: ")
-##    
-##    arduino.write(data.encode())  # Send data to Arduino
-##    time.sleep(2) # small delay to prevent issues.
-##    print('done waiting')
-##    #Optional read from the arduino.
-##    if arduino.in_waiting > 0 :
-##        received_data = arduino.readline().decode().rstrip()
-##        print(f"From Arduino: {received_data}")
-##        
-##
-##    arduino.close()
-
+print('LED Illumination System for Multiwell Plates GUI')
+print(f'Version: {VERSION}')
 
 
 class light:
@@ -47,7 +34,7 @@ while(True):
         lightObj.brightness = brightnessNumber
         lightObj.hue = hueNumbers
 
-                         
+
         arduino.write((jsons.dumps(lightDict)).encode())  # Send data to Arduino
         time.sleep(2)
 
@@ -55,7 +42,7 @@ while(True):
             received_data = arduino.readline().decode().rstrip()
             print(f"From Arduino: {received_data}")
 
-                      
+
     except ValueError:
         print("i bet you didn't give me numbers, bitch")
     arduino.close()
