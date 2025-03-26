@@ -5,7 +5,9 @@
 ######################################
 # Imports
 ######################################
+import argparse
 import serial
+import sys
 import time
 import jsons
 
@@ -13,6 +15,13 @@ import jsons
 # Global Constants
 ######################################
 GUI_VERSION = 1.0
+
+######################################
+# Command Line Arguments
+######################################
+parser = argparse.ArgumentParser()
+parser.add_argument('--port', type=str, help='COM port of Arduino ex: COM3', default=None)
+args = parser.parse_args()
 
 ######################################
 # Classes
@@ -34,12 +43,22 @@ def main():
     print('LED Illumination System for Multiwell Plates GUI')
     print(f'Version: {GUI_VERSION}')
 
+    # Check variables
+    arduino_port = args.port
+    if arduino_port is None:
+        arduino_port = input("Enter COM port: ")
+
     lightDict = dict()
     for i in range(12):
         lightDict[i] = light(0,0)
 
     while(True):
-        arduino = serial.Serial('COM3', 9600, timeout=1) # timeout added.
+        # Open Serial port to Arduino
+        try:
+            arduino = serial.Serial(arduino_port, 9600, timeout=1)
+        except serial.serialutil.SerialException:
+            print('COM port not found. Verify COM number or use --help for formatting')
+            sys.exit(-1)
         time.sleep(2)  # Allow time for the serial port to initialize
 
         try:
