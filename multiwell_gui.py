@@ -21,6 +21,7 @@ GUI_VERSION = 1.0
 ######################################
 parser = argparse.ArgumentParser()
 parser.add_argument('--port', type=str, help='COM port of Arduino ex: COM3', default=None)
+parser.add_argument('--gui_only', action='store_true',help='Disables connecting to Arduino for GUI development.')
 args = parser.parse_args()
 
 ######################################
@@ -30,7 +31,6 @@ class light:
     def __init__(self, brightness, hue):
        self.brightness = brightness
        self.hue = hue
-
 
 ######################################
 # Functions
@@ -44,44 +44,51 @@ def main():
     print(f'Version: {GUI_VERSION}')
 
     # Check variables
-    arduino_port = args.port
-    if arduino_port is None:
-        arduino_port = input("Enter COM port: ")
+
+    if not args.gui_only:
+        arduino_port = args.port
+        if arduino_port is None:
+            arduino_port = input("Enter COM port: ")
 
     lightDict = dict()
     for i in range(12):
         lightDict[i] = light(0,0)
 
     while(True):
-        # Open Serial port to Arduino
-        try:
-            arduino = serial.Serial(arduino_port, 9600, timeout=1)
-        except serial.serialutil.SerialException:
-            print('COM port not found. Verify COM number or use --help for formatting')
-            sys.exit(-1)
-        time.sleep(2)  # Allow time for the serial port to initialize
 
-        try:
-            lightNumber = int(input("Gimmie a light number"))
-            brightnessNumber = int(input("Gimmie a brightness"))
-            hueNumbers = 0
+        if not args.gui_only:
+            # Open Serial port to Arduino
+            try:
+                arduino = serial.Serial(arduino_port, 9600, timeout=1)
+            except serial.serialutil.SerialException:
+                print('COM port not found. Verify COM number or use --help for formatting')
+                sys.exit(-1)
+            time.sleep(2)  # Allow time for the serial port to initialize
 
-            lightObj = lightDict[lightNumber]
-            lightObj.brightness = brightnessNumber
-            lightObj.hue = hueNumbers
+        lightNumber = int(input("Gimmie a light number"))
+        brightnessNumber = int(input("Gimmie a brightness"))
+        hueNumbers = 0
 
+        lightObj = lightDict[lightNumber]
+        lightObj.brightness = brightnessNumber
+        lightObj.hue = hueNumbers
 
-            arduino.write((jsons.dumps(lightDict)).encode())  # Send data to Arduino
-            time.sleep(2)
+        json_dump = jsons.dumps(lightDict).encode()
 
-            if arduino.in_waiting > 0 :
-                received_data = arduino.readline().decode().rstrip()
-                print(f"From Arduino: {received_data}")
+        if not args.gui_only:
+            try:
+                arduino.write(json_dump)  # Send data to Arduino
+                time.sleep(2)
 
+                if arduino.in_waiting > 0 :
+                    received_data = arduino.readline().decode().rstrip()
+                    print(f"From Arduino: {received_data}")
 
-        except ValueError:
-            print("i bet you didn't give me numbers, bitch")
-        arduino.close()
+            except ValueError:
+                print("i bet you didn't give me numbers, bitch")
+            arduino.close()
+        else:
+            print(f'json_dump: {json_dump}')
 
 if __name__=="__main__":
     main()
