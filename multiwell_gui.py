@@ -6,18 +6,17 @@
 # Imports
 ######################################
 import argparse
-from itertools import chain
 import serial
 import sys
 import time
+import tkinter as tk
 import jsons
-
-import numpy as np
 
 ######################################
 # Global Constants
 ######################################
 GUI_VERSION = 1.0
+GUI_INFO_STR = f'LED Illumination System for Multiwell Plates GUI\nVersion: {GUI_VERSION}'
 
 LED_CNT = 12
 COL_CNT = 4
@@ -72,11 +71,6 @@ class LedArray:
       return f"LedArray(led_count={len(self.array)})"
 
 ######################################
-# Global Variables
-######################################
-mLedArray = LedArray()
-
-######################################
 # Command Line Arguments
 ######################################
 parser = argparse.ArgumentParser()
@@ -85,58 +79,76 @@ parser.add_argument('--gui_only', action='store_true',help='Disables connecting 
 args = parser.parse_args()
 
 ######################################
+# Global Variables
+######################################
+mLedArray = LedArray()
+
+if not args.gui_only:
+    mArduinoPort = args.port
+    if mArduinoPort  is None:
+        mArduinoPort  = input("Enter COM port: ")
+
+######################################
 # Functions
 ######################################
+def updateLEDs( updates ):
+    print([up.get() for up in updates])
+    if not args.gui_only:
+        # Open Serial port to Arduino
+        try:
+            arduino = serial.Serial(mArduinoPort, 9600, timeout=1)
+        except serial.serialutil.SerialException:
+            print('COM port not found. Verify COM number or use --help for formatting')
+            sys.exit(-1)
+        time.sleep(2)  # Allow time for the serial port to initialize
+
+    json_dump = jsons.dumps(mLedArray.get_tx_array()).encode()
+
+    if not args.gui_only:
+        try:
+            arduino.write(json_dump)  # Send data to Arduino
+            time.sleep(2)
+
+            if arduino.in_waiting > 0 :
+                received_data = arduino.readline().decode().rstrip()
+                print(f"From Arduino: {received_data}")
+
+        except ValueError:
+            print("No values from Arduino")
+        arduino.close()
+    else:
+        print(f'json_dump: {json_dump}')
 
 ######################################
 # Main
 ######################################
 def main():
-    print('LED Illumination System for Multiwell Plates GUI')
-    print(f'Version: {GUI_VERSION}')
+    print(GUI_INFO_STR)
 
-    # Check variables
-    if not args.gui_only:
-        arduino_port = args.port
-        if arduino_port is None:
-            arduino_port = input("Enter COM port: ")
+    window = tk.Tk()
+    window.title(GUI_INFO_STR)
+    # window.state('zoomed')
+    window.update_idletasks()
 
-    while(True):
+    entries = []
+    for row in range(1,(ROW_CNT*2)+1,2):
+        for col in range(COL_CNT):
+            label = tk.Label(window, text=f"LED {(row*2)+col-1}")
+            entry = tk.Entry(window)
+            label.grid(row=row, column=col, padx=5, pady=5)
+            entry.grid(row=row+1, column=col, padx=5, pady=5)
+            entries.append(entry)
 
-        if not args.gui_only:
-            # Open Serial port to Arduino
-            try:
-                arduino = serial.Serial(arduino_port, 9600, timeout=1)
-            except serial.serialutil.SerialException:
-                print('COM port not found. Verify COM number or use --help for formatting')
-                sys.exit(-1)
-            time.sleep(2)  # Allow time for the serial port to initialize
+    # for i in range(ROW_CNT*2+1):
+    #     window.rowconfigure(i, weight=1)
+    for j in range(COL_CNT):
+        window.columnconfigure(j, weight=1)
+    window.rowconfigure(ROW_CNT*2+1, minsize = 50)
 
-        # lightNumber = int(input("Light Number: "))
-        # brightnessNumber = int(input("Brightness: "))
-        # hueNumbers = 0
+    button = tk.Button(window, text="Update LEDs", command=lambda: updateLEDs(entries))
+    button.grid(row=0, column=0, columnspan=4, pady=5)
 
-        # lightObj = lightDict[lightNumber]
-        # lightObj.brightness = brightnessNumber
-        # lightObj.hue = hueNumbers
-
-        json_dump = jsons.dumps(mLedArray.get_tx_array()).encode()
-
-        if not args.gui_only:
-            try:
-                arduino.write(json_dump)  # Send data to Arduino
-                time.sleep(2)
-
-                if arduino.in_waiting > 0 :
-                    received_data = arduino.readline().decode().rstrip()
-                    print(f"From Arduino: {received_data}")
-
-            except ValueError:
-                print("i bet you didn't give me numbers, bitch")
-            arduino.close()
-        else:
-            print(f'json_dump: {json_dump}')
-        sys.exit()
+    window.mainloop()
 
 if __name__=="__main__":
     main()
