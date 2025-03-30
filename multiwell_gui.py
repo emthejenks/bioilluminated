@@ -58,15 +58,25 @@ class LedArray:
             return self.array[index]
         else:
             return None
+    def get_led_settings(self, index):
+        if index >= len(self.array):
+            return None
+        return self.array[index].get_settings()
     def set_led_settings(self, index, settings):
-      targetLed = self.get_led(index)
-      if targetLed:
-        targetLed.settings = settings
+        targetLed = self.get_led(index)
+        if targetLed:
+            targetLed.settings = settings
     def get_tx_array(self):
         ret_dict = dict()
         for i,led in enumerate(self.array):
             ret_dict[i] = led.settings
         return ret_dict
+    def updt_from_entry_array(self, updt_array):
+        for idx, up in enumerate(updt_array):
+            print(f'{idx}: {up.get()}')
+            sets = self.get_led_settings(idx)
+            sets.brightness = up.get()
+            self.set_led_settings(idx, sets )
     def __repr__(self):
       return f"LedArray(led_count={len(self.array)})"
 
@@ -92,7 +102,8 @@ if not args.gui_only:
 # Functions
 ######################################
 def updateLEDs( updates ):
-    print([up.get() for up in updates])
+    mLedArray.updt_from_entry_array(updates)
+
     if not args.gui_only:
         # Open Serial port to Arduino
         try:
