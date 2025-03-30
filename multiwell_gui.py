@@ -102,6 +102,46 @@ if not args.gui_only:
 ######################################
 # Functions
 ######################################
+def switch_view(view_mode):
+    global COL_CNT, ROW_CNT
+    if view_mode == "Grid":
+        COL_CNT = 4
+        ROW_CNT = 3
+    elif view_mode == "Column":
+        ROW_CNT = 1
+    redraw_ui()
+
+def redraw_ui():
+    global frame, entries, button
+
+    # Destroy old widgets
+    for widget in frame.winfo_children():
+        widget.destroy()
+
+    # Recreate LED labels and entry fields
+    entries = []
+    for i in range(LED_CNT):
+        col = i % COL_CNT
+        row = i // COL_CNT * 2
+
+        label = ttk.Label(frame, text=f"LED {i+1}" if COL_CNT !=1 else f"Column {i+1}")
+        label.grid(row=row, column=col, padx=5, pady=5)
+
+        entry = ttk.Entry(frame, width=10)
+        entry.insert(0, 0)
+        entry.grid(row=row + 1, column=col, padx=5, pady=5)
+        entries.append(entry)
+
+    # Recreate button
+    button = ttk.Button(frame, text="Update LEDs", command=lambda: updateLEDs(entries))
+    button.grid(row=ROW_CNT * 2 + 1, column=0, columnspan=COL_CNT, pady=20)
+
+    # Reconfigure grid
+    for i in range(COL_CNT):
+        frame.columnconfigure(i, weight=1)
+    for i in range(ROW_CNT * 2 + 1):
+        frame.rowconfigure(i, weight=1)
+
 def updateLEDs( updates ):
     mLedArray.updt_from_entry_array(updates)
 
