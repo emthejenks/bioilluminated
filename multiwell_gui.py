@@ -24,6 +24,8 @@ COL_CNT = 4
 ROW_CNT = 3
 assert COL_CNT*ROW_CNT==LED_CNT, 'Invalid LED array configuration'
 
+VIEW_OPTIONS = ["Grid", "Column"]
+
 ######################################
 # Classes
 ######################################
@@ -45,6 +47,12 @@ class Led:
         self.settings.reset()
     def get_settings(self):
         return self.settings
+    def update_brightness(self, br):
+        self.settings.brightness = br
+    def get_row(self):
+        return self.index // COL_CNT
+    def get_col(self):
+        return self.index % COL_CNT
     def __repr__(self):
         return f"Led(index={self.index}, settings={self.settings})"
 
@@ -54,19 +62,25 @@ class LedArray:
     def reset_all(self):
         for led in self.array:
             led.reset()
+    def get_col_idxs(self, col_num):
+        col_idxs = []
+        for idx in range(LED_CNT):
+            if self.get_led(idx).get_col() == col_num:
+                col_idxs.append(idx)
+        return col_idxs
+    def get_row_idxs(self, row_num):
+        row_idxs = []
+        for idx in range(LED_CNT):
+            if self.get_led(idx).get_row() == row_num:
+                row_idxs.append(idx)
+        return row_idxs
     def get_led(self, index):
-        if 0 <= index < len(self.array):
-            return self.array[index]
-        else:
-            return None
+        assert(index >= 0 and index < len(self.array), "Invalid LED index")
+        return self.array[index]
     def get_led_settings(self, index):
-        if index >= len(self.array):
-            return None
-        return self.array[index].get_settings()
+        return self.get_led(index).get_settings()
     def set_led_settings(self, index, settings):
-        targetLed = self.get_led(index)
-        if targetLed:
-            targetLed.settings = settings
+        self.get_led(index).settings = settings
     def get_tx_array(self):
         ret_dict = dict()
         for i,led in enumerate(self.array):
@@ -75,9 +89,14 @@ class LedArray:
     def updt_from_entry_array(self, updt_array):
         for idx, up in enumerate(updt_array):
             print(f'{idx}: {up.get()}')
-            sets = self.get_led_settings(idx)
-            sets.brightness = up.get()
-            self.set_led_settings(idx, sets )
+            if view_mode == "Grid":
+                self.array(idx).update_brightness(up.get())
+            elif view_mode == "Column":
+
+                led_idxs = self.get_col_idxs(idx)
+                for led in led_idxs:
+                    self.get_led(led).update_brightness(up.get())
+
     def __repr__(self):
       return f"LedArray(led_count={len(self.array)})"
 
@@ -99,11 +118,17 @@ if not args.gui_only:
     if mArduinoPort  is None:
         mArduinoPort  = input("Enter COM port: ")
 
+frame = None
+entries = []
+button = None
+view_mode = "Grid"
+
 ######################################
 # Functions
 ######################################
-def switch_view(view_mode):
-    global COL_CNT, ROW_CNT
+def switch_view(vm):
+    global COL_CNT, ROW_CNT, view_mode
+    view_mode = vm
     if view_mode == "Grid":
         COL_CNT = 4
         ROW_CNT = 3
@@ -112,7 +137,7 @@ def switch_view(view_mode):
     redraw_ui()
 
 def redraw_ui():
-    global frame, entries, button
+    global frame, entries, button, COL_CNT, ROW_CNT, view_mode, VIEW_OPTIONS
 
     # Destroy old widgets
     for widget in frame.winfo_children():
@@ -120,11 +145,11 @@ def redraw_ui():
 
     # Recreate LED labels and entry fields
     entries = []
-    for i in range(LED_CNT):
+    for i in range(COL_CNT*ROW_CNT):
         col = i % COL_CNT
         row = i // COL_CNT * 2
 
-        label = ttk.Label(frame, text=f"LED {i+1}" if COL_CNT !=1 else f"Column {i+1}")
+        label = ttk.Label(frame, text=f"LED {i+1}" if view_mode == "Grid" else f"Column {i+1}")
         label.grid(row=row, column=col, padx=5, pady=5)
 
         entry = ttk.Entry(frame, width=10)
@@ -141,6 +166,14 @@ def redraw_ui():
         frame.columnconfigure(i, weight=1)
     for i in range(ROW_CNT * 2 + 1):
         frame.rowconfigure(i, weight=1)
+
+    # Dropdown menu for view mode
+    view_var = tk.StringVar()
+    view_var.set(view_mode)  # Default view
+
+    # Corrected OptionMenu command to use a lambda function
+    view_menu = ttk.OptionMenu(frame, view_var, view_var.get(), *VIEW_OPTIONS, command=lambda value: switch_view(value))
+    view_menu.grid(row=0, column=COL_CNT, padx=10, pady=10, sticky=tk.NE)
 
 def updateLEDs( updates ):
     mLedArray.updt_from_entry_array(updates)
@@ -175,6 +208,8 @@ def updateLEDs( updates ):
 # Main
 ######################################
 def main():
+    global frame, entries, button, ROW_CNT, COL_CNT
+
     print(GUI_INFO_STR)
 
     window = tk.Tk()
@@ -196,30 +231,8 @@ def main():
     frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
     frame.configure(borderwidth=2, relief="groove")
 
-    # LED labels and entry fields
-    led_labels = [f"LED {i+1}" for i in range(LED_CNT)]
-    entries = []
-
-    for i in range(LED_CNT):
-        col = i % COL_CNT
-        row = i // COL_CNT * 2
-
-        label = ttk.Label(frame, text=led_labels[i])
-        label.grid(row=row, column=col, padx=5, pady=5)
-
-        entry = ttk.Entry(frame, width=10)
-        entry.insert(0, 0)
-        entry.grid(row=row + 1, column=col, padx=5, pady=5)
-        entries.append(entry)
-
-    # Corrected button command
-    button = ttk.Button(frame, text="Update LEDs", command=lambda: updateLEDs(entries))
-    button.grid(row=ROW_CNT * 2 + 1, column=0, columnspan=COL_CNT, pady=20)
-
-    for i in range(COL_CNT):
-        frame.columnconfigure(i, weight=1)
-    for i in range(ROW_CNT * 2 + 1):
-        frame.rowconfigure(i, weight=1)
+    # Initial UI setup
+    redraw_ui()
 
     window.mainloop()
 
