@@ -24,7 +24,7 @@ COL_CNT = 4
 ROW_CNT = 3
 assert COL_CNT*ROW_CNT==LED_CNT, 'Invalid LED array configuration'
 
-VIEW_OPTIONS = ["Grid", "Column", "Row"]
+VIEW_OPTIONS = ["Grid", "Column", "Row", "Uniform"]
 
 ######################################
 # Classes
@@ -40,8 +40,9 @@ class LedSettings:
         return f"LedSettings(brightness={self.brightness}, hue={self.hue})"
 
 class Led:
-    def __init__(self, index):
+    def __init__(self, index, parent_array):
         self.index = index
+        self.parent_array = parent_array
         self.settings = LedSettings()
     def reset(self):
         self.settings.reset()
@@ -50,32 +51,35 @@ class Led:
     def update_brightness(self, br):
         self.settings.brightness = br
     def get_row(self):
-        return self.index // COL_CNT
+        return self.index // self.parent_array.cols
     def get_col(self):
-        return self.index % COL_CNT
+        return self.index % self.parent_array.cols
     def __repr__(self):
         return f"Led(index={self.index}, settings={self.settings})"
 
 class LedArray:
     def __init__(self, rows=ROW_CNT, cols=COL_CNT, led_count=LED_CNT):
-        self.array = [Led(i) for i in range(led_count)]
+        self.array = [Led(i, self) for i in range(led_count)]
+        self.rows = rows
+        self.cols = cols
+        self.led_count = led_count
     def reset_all(self):
         for led in self.array:
             led.reset()
     def get_col_idxs(self, col_num):
         col_idxs = []
-        for idx in range(LED_CNT):
+        for idx in range(self.led_count):
             if self.get_led(idx).get_col() == col_num:
                 col_idxs.append(idx)
         return col_idxs
     def get_row_idxs(self, row_num):
         row_idxs = []
-        for idx in range(LED_CNT):
+        for idx in range(self.led_count):
             if self.get_led(idx).get_row() == row_num:
                 row_idxs.append(idx)
         return row_idxs
     def get_led(self, index):
-        assert(index >= 0 and index < len(self.array), "Invalid LED index")
+        assert index >= 0 and index < len(self.array), "Invalid LED index"
         return self.array[index]
     def get_led_settings(self, index):
         return self.get_led(index).get_settings()
@@ -86,19 +90,22 @@ class LedArray:
         for i,led in enumerate(self.array):
             ret_dict[i] = led.settings
         return ret_dict
-    def updt_from_entry_array(self, updt_array):
+    def updt_grid(self, updt_array):
         for idx, up in enumerate(updt_array):
-            print(f'{idx}: {up.get()}')
-            if view_mode == "Grid":
-                self.array(idx).update_brightness(up.get())
-            elif view_mode == "Column":
-                led_idxs = self.get_col_idxs(idx)
-                for led in led_idxs:
-                    self.get_led(led).update_brightness(up.get())
-            elif view_mode == "Row":
-                led_idxs = self.get_row_idxs(idx)
-                for led in led_idxs:
-                    self.get_led(led).update_brightness(up.get())
+            self.get_led(idx).update_brightness(up.get())
+    def updt_cols(self, updt_array):
+        for idx, up in enumerate(updt_array):
+            led_idxs = self.get_col_idxs(idx)
+            for led in led_idxs:
+                self.get_led(led).update_brightness(up.get())
+    def updt_rows(self, updt_array):
+        for idx, up in enumerate(updt_array):
+            led_idxs = self.get_row_idxs(idx)
+            for led in led_idxs:
+                self.get_led(led).update_brightness(up.get())
+    def updt_all(self, updt_array):
+        for led in self.array:
+            led.update_brightness(updt_array[0].get())
     def __repr__(self):
       return f"LedArray(led_count={len(self.array)})"
 
@@ -120,80 +127,94 @@ if not args.gui_only:
     if mArduinoPort  is None:
         mArduinoPort  = input("Enter COM port: ")
 
-frame = None
-entries = []
-button = None
-view_mode = "Grid"
+mFrame = None
+mEntries = []
+mButton = None
+mViewMode = "Grid"
 
-ui_row_cnt = ROW_CNT
-ui_col_cnt = COL_CNT
+mUiRowCnt = ROW_CNT
+mUiColCnt = COL_CNT
 
 ######################################
 # Functions
 ######################################
 def switch_view(vm):
-    global ui_row_cnt, ui_col_cnt, view_mode
-    view_mode = vm
-    if view_mode == "Grid":
-        ui_col_cnt = 4
-        ui_row_cnt = 3
-    elif view_mode == "Column":
-        ui_col_cnt = 4
-        ui_row_cnt = 1
-    elif view_mode == "Row":
-        ui_col_cnt = 1
-        ui_row_cnt = 3
+    global mUiRowCnt, mUiColCnt, mViewMode
+    mViewMode = vm
+    if mViewMode == "Grid":
+        mUiColCnt = COL_CNT
+        mUiRowCnt = ROW_CNT
+    elif mViewMode == "Column":
+        mUiColCnt = COL_CNT
+        mUiRowCnt = 1
+    elif mViewMode == "Row":
+        mUiColCnt = 1
+        mUiRowCnt = ROW_CNT
+    elif mViewMode == "Uniform":
+        mUiColCnt = 1
+        mUiRowCnt = 1
     redraw_ui()
 
-def get_view_mode_label_text():
-    if view_mode == "Grid":
-        return "LED"
-    elif view_mode == "Column":
-        return "Column"
-    elif view_mode == "Row":
-        return "Row"
+def get_view_mode_label_text(i):
+    if mViewMode == "Grid":
+        return f"LED {i+1}"
+    elif mViewMode == "Column":
+        return f"Column {i+1}"
+    elif mViewMode == "Row":
+        return f"Row {i+1}"
+    elif mViewMode == "Uniform":
+        return "All LEDs"
 
 def redraw_ui():
-    global frame, entries, button, ui_row_cnt, ui_col_cnt, view_mode, VIEW_OPTIONS
+    global mFrame, mEntries, mButton, mUiRowCnt, mUiColCnt, mViewMode, VIEW_OPTIONS
 
     # Destroy old widgets
-    for widget in frame.winfo_children():
+    for widget in mFrame.winfo_children():
         widget.destroy()
 
     # Recreate LED labels and entry fields
-    entries = []
-    for i in range(ui_col_cnt*ui_row_cnt):
-        col = i % ui_col_cnt
-        row = i // ui_col_cnt * 2
+    mEntries = []
+    for i in range(mUiColCnt*mUiRowCnt):
+        col = i % mUiColCnt
+        row = i // mUiColCnt * 2
 
-        label = ttk.Label(frame, text=f"{get_view_mode_label_text()} {i+1}")
+        label = ttk.Label(mFrame, text=get_view_mode_label_text(i))
         label.grid(row=row, column=col, padx=5, pady=5)
 
-        entry = ttk.Entry(frame, width=10)
+        entry = ttk.Entry(mFrame, width=10)
         entry.insert(0, 0)
         entry.grid(row=row + 1, column=col, padx=5, pady=5)
-        entries.append(entry)
+        mEntries.append(entry)
 
     # Recreate button
-    button = ttk.Button(frame, text="Update LEDs", command=lambda: updateLEDs(entries))
-    button.grid(row=ui_row_cnt * 2 + 1, column=0, columnspan=ui_col_cnt, pady=20)
+    mButton = ttk.Button(mFrame, text="Update LEDs", command=lambda: updateLEDs(mEntries))
+    mButton.grid(row=mUiRowCnt * 2 + 1, column=0, columnspan=mUiColCnt, pady=20)
 
     # Reconfigure grid
-    for i in range(ui_col_cnt):
-        frame.columnconfigure(i, weight=1)
-    for i in range(ui_row_cnt * 2 + 1):
-        frame.rowconfigure(i, weight=1)
+    for i in range(mUiColCnt):
+        mFrame.columnconfigure(i, weight=1)
+    for i in range(mUiRowCnt * 2 + 1):
+        mFrame.rowconfigure(i, weight=1)
 
     # Dropdown menu for view mode
     view_var = tk.StringVar()
-    view_var.set(view_mode)  # Default view
+    view_var.set(mViewMode)  # Default view
 
     # Corrected OptionMenu command to use a lambda function
-    view_menu = ttk.OptionMenu(frame, view_var, view_var.get(), *VIEW_OPTIONS, command=lambda value: switch_view(value))
-    view_menu.grid(row=0, column=ui_col_cnt, padx=10, pady=10, sticky=tk.NE)
+    view_menu = ttk.OptionMenu(mFrame, view_var, view_var.get(), *VIEW_OPTIONS, command=lambda value: switch_view(value))
+    view_menu.grid(row=0, column=mUiColCnt, padx=10, pady=10, sticky=tk.NE)
 
 def updateLEDs( updates ):
-    mLedArray.updt_from_entry_array(updates)
+    if mViewMode == "Grid":
+        mLedArray.updt_grid(updates)
+    elif mViewMode == "Column":
+        mLedArray.updt_cols(updates)
+    elif mViewMode == "Row":
+        mLedArray.updt_rows(updates)
+    elif mViewMode == "Uniform":
+        mLedArray.updt_all(updates)
+    else:
+        assert False, "Invalid view mode"
 
     if not args.gui_only:
         # Open Serial port to Arduino
@@ -225,7 +246,7 @@ def updateLEDs( updates ):
 # Main
 ######################################
 def main():
-    global frame
+    global mFrame
 
     print(GUI_INFO_STR)
 
@@ -244,9 +265,9 @@ def main():
     window.rowconfigure(0, weight=1)
 
     # Create a frame to hold the entries and labels
-    frame = ttk.Frame(window, padding="20")
-    frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-    frame.configure(borderwidth=2, relief="groove")
+    mFrame = ttk.Frame(window, padding="20")
+    mFrame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+    mFrame.configure(borderwidth=2, relief="groove")
 
     # Initial UI setup
     redraw_ui()
