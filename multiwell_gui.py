@@ -10,6 +10,7 @@ import serial
 import sys
 import time
 import tkinter as tk
+from tkinter import ttk
 import jsons
 
 ######################################
@@ -138,27 +139,47 @@ def main():
 
     window = tk.Tk()
     window.title(GUI_INFO_STR)
-    # window.state('zoomed')
-    window.update_idletasks()
 
+    # Modern styling
+    style = ttk.Style()
+    style.theme_use("clam")
+
+    # Set background color for the main window
+    window.configure(bg="#f0f0f0")
+
+    # Configure root window to expand
+    window.columnconfigure(0, weight=1)
+    window.rowconfigure(0, weight=1)
+
+    # Create a frame to hold the entries and labels
+    frame = ttk.Frame(window, padding="20")
+    frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+    frame.configure(borderwidth=2, relief="groove")
+
+    # LED labels and entry fields
+    led_labels = [f"LED {i+1}" for i in range(LED_CNT)]
     entries = []
-    for row in range(1,(ROW_CNT*2)+1,2):
-        for col in range(COL_CNT):
-            label = tk.Label(window, text=f"LED {(row*2)+col-1}")
-            entry = tk.Entry(window)
-            entry.insert(0,0)
-            label.grid(row=row, column=col, padx=5, pady=5)
-            entry.grid(row=row+1, column=col, padx=5, pady=5)
-            entries.append(entry)
 
-    # for i in range(ROW_CNT*2+1):
-    #     window.rowconfigure(i, weight=1)
-    for j in range(COL_CNT):
-        window.columnconfigure(j, weight=1)
-    window.rowconfigure(ROW_CNT*2+1, minsize = 50)
+    for i in range(LED_CNT):
+        col = i % COL_CNT
+        row = i // COL_CNT * 2
 
-    button = tk.Button(window, text="Update LEDs", command=lambda: updateLEDs(entries))
-    button.grid(row=0, column=0, columnspan=4, pady=5)
+        label = ttk.Label(frame, text=led_labels[i])
+        label.grid(row=row, column=col, padx=5, pady=5)
+
+        entry = ttk.Entry(frame, width=10)
+        entry.insert(0, 0)
+        entry.grid(row=row + 1, column=col, padx=5, pady=5)
+        entries.append(entry)
+
+    # Corrected button command
+    button = ttk.Button(frame, text="Update LEDs", command=lambda: updateLEDs(entries))
+    button.grid(row=ROW_CNT * 2 + 1, column=0, columnspan=COL_CNT, pady=20)
+
+    for i in range(COL_CNT):
+        frame.columnconfigure(i, weight=1)
+    for i in range(ROW_CNT * 2 + 1):
+        frame.rowconfigure(i, weight=1)
 
     window.mainloop()
 
