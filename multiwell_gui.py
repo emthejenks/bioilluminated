@@ -135,6 +135,7 @@ def main():
         for col in range(COL_CNT):
             label = tk.Label(window, text=f"LED {(row*2)+col-1}")
             entry = tk.Entry(window)
+            entry.insert(0,0)
             label.grid(row=row, column=col, padx=5, pady=5)
             entry.grid(row=row+1, column=col, padx=5, pady=5)
             entries.append(entry)
